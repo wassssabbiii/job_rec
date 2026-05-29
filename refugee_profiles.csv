@@ -1,0 +1,11 @@
+﻿RefugeeID,skill,education_level,experience_years,preferred_job,city,openings_count,demand_level
+R001,tailor,primary,5,tailor,bangalore,120,3
+R002,carpenter,secondary,8,carpenter,bangalore,80,2
+R003,electrician,diploma,6,electrician,chennai,90,3
+R004,plumber,secondary,4,plumber,chennai,70,2
+R005,farmer,primary,10,farmer,kochi,60,3
+R006,IT,degree,2,IT,kochi,40,2
+R007,data_entry,diploma,3,data_entry,hyderabad,100,3
+R008,healthcare,secondary,5,healthcare,hyderabad,110,3
+R009,tailor,primary,1,tailor,pune,75,2
+R010,carpenter,primary,6,carpenter,pune,50,2

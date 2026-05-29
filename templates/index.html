@@ -1,0 +1,55 @@
+<!DOCTYPE html>
+<html>
+
+<head>
+    <title>Refugee Resettlement System</title>
+    <!--link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}"-->
+    <link rel="stylesheet" href="style.css">
+</head>
+
+<body>
+
+    <div class="container">
+        <h2>AI-Based Refugee Resettlement</h2>
+
+        <form method="POST">
+
+            <label>Skill</label>
+            <select name="skill" required>
+                {% for s in skills %}
+                <option value="{{ s }}">{{ s }}</option>
+                {% endfor %}
+            </select>
+
+            <label>Education Level</label>
+            <select name="education" required>
+                {% for e in educations %}
+                <option value="{{ e }}">{{ e }}</option>
+                {% endfor %}
+            </select>
+
+            <label>Experience (Years)</label>
+            <input type="number" name="experience" min="0" required>
+
+            <label>Job Openings</label>
+            <input type="number" name="openings" min="0" required>
+
+            <button type="submit">Find Best City</button>
+        </form>
+
+        {% if city %}
+        <div class="result">
+            <h3>Recommended City: {{ city }}</h3>
+        </div>
+        {% endif %}
+
+        {% if message %}
+        <div class="result" style="background-color:#ffe6e6;">
+            <h3>{{ message }}</h3>
+        </div>
+        {% endif %}
+    </div>
+
+</body>
+
+</html>
