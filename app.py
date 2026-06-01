@@ -6,38 +6,42 @@ from sklearn.neighbors import KNeighborsClassifier
 
 app = Flask(__name__)
 
-# ---------------- LOAD DATA ----------------
-data = pd.read_csv("refugee_profiles.csv")
-
+# ---------------- 1. LOAD DATA ----------------
+# Read the expanded dataset and strip trailing spaces
+data = pd.read_csv("refugee_profiles_expanded.csv")
 data.columns = data.columns.str.strip()
-data['skill'] = data['skill'].astype(str).str.strip()
-data['education_level'] = data['education_level'].astype(str).str.strip()
-data['city'] = data['city'].astype(str).str.strip()
 
-# ---------------- ENCODERS ----------------
-encoder_skill = LabelEncoder()
-encoder_edu = LabelEncoder()
-encoder_city = LabelEncoder()
+# ---------------- 2. TARGET ENCODING ----------------
+city_encoder = LabelEncoder()
+y = city_encoder.fit_transform(data['city'].str.strip())
 
-data['skill_enc'] = encoder_skill.fit_transform(data['skill'])
-data['edu_enc'] = encoder_edu.fit_transform(data['education_level'])
-data['city_enc'] = encoder_city.fit_transform(data['city'])
+# ---------------- 3. FEATURE ENGINEERING ----------------
+# Use dtype=int to force 0/1 integers instead of True/False flags
+features_to_encode = ['skill', 'education_level']
+X_categorical = pd.get_dummies(
+    data[features_to_encode], drop_first=False, dtype=int)
 
-# ---------------- FEATURES ----------------
-X = data[['skill_enc', 'edu_enc', 'experience_years', 'openings_count']].copy()
-y = data['city_enc']
+# Isolate numeric columns and convert them safely to floats
+X_numerical = data[['experience_years', 'openings_count']].copy()
+X_numerical['experience_years'] = X_numerical['experience_years'].astype(float)
+X_numerical['openings_count'] = X_numerical['openings_count'].astype(float)
 
-# ---------------- SCALING ----------------
+# Scale numeric columns smoothly
 scaler = MinMaxScaler()
-X[['experience_years', 'openings_count']] = scaler.fit_transform(
-    X[['experience_years', 'openings_count']]
-)
+numerical_cols = ['experience_years', 'openings_count']
+X_numerical[numerical_cols] = scaler.fit_transform(X_numerical[numerical_cols])
 
-# ---------------- MODEL ----------------
-knn = KNeighborsClassifier(n_neighbors=3, weights='distance')
+# Combine categorical columns and numerical columns into our final Feature Matrix
+X = pd.concat([X_categorical, X_numerical], axis=1)
+
+# FORCE EVERYTHING IN THE MATRIX TO FLOAT (This fixes the scikit-learn container error permanently)
+X = X.astype(float)
+
+# ---------------- 4. MODEL TRAINING ----------------
+knn = KNeighborsClassifier(n_neighbors=1, weights='distance')
 knn.fit(X, y)
 
-# ---------------- ROUTE ----------------
+# ---------------- 5. FLASK ROUTE ----------------
 
 
 @app.route("/", methods=["GET", "POST"])
@@ -45,8 +49,9 @@ def index():
     city = None
     message = None
 
-    skills = sorted(encoder_skill.classes_)
-    educations = sorted(encoder_edu.classes_)
+    # Dynamically pull options for HTML dropdown filters
+    skills = sorted(data['skill'].unique())
+    educations = sorted(data['education_level'].unique())
 
     if request.method == "POST":
         skill = request.form["skill"]
@@ -54,32 +59,40 @@ def index():
         experience = float(request.form["experience"])
         openings = int(request.form["openings"])
 
-        # 🔴 CONDITION: No jobs available
         if openings == 0:
             message = "No job found for the given input."
         else:
-            # Encode inputs
-            skill_enc = encoder_skill.transform([skill])[0]
-            edu_enc = encoder_edu.transform([education])[0]
+            # Create a user profile dictionary mimicking the dataset layout
+            sample_raw = {
+                'skill': skill,
+                'education_level': education,
+                'experience_years': experience,
+                'openings_count': float(openings)
+            }
+            sample_df = pd.DataFrame([sample_raw])
 
-            # Prepare input for model
-            sample = pd.DataFrame(
-                [[skill_enc, edu_enc, experience, openings]],
-                columns=[
-                    'skill_enc',
-                    'edu_enc',
-                    'experience_years',
-                    'openings_count'
-                ]
-            )
+            # Scale numeric metrics using training configurations
+            sample_df[numerical_cols] = scaler.transform(
+                sample_df[numerical_cols])
 
-            sample[['experience_years', 'openings_count']] = scaler.transform(
-                sample[['experience_years', 'openings_count']]
-            )
+            # One-Hot Encode user selections with integer settings
+            sample_encoded = pd.get_dummies(
+                sample_df[['skill', 'education_level']], dtype=int)
 
-            # Predict city
-            prediction = knn.predict(sample)
-            city = encoder_city.inverse_transform(prediction)[0]
+            # Reindex to build all structural feature columns, defaulting missing tracks to 0
+            sample_encoded = sample_encoded.reindex(
+                columns=X_categorical.columns, fill_value=0)
+
+            # Merge columns back together to construct sample matrix
+            final_sample = pd.concat(
+                [sample_encoded, sample_df[numerical_cols]], axis=1)
+
+            # FORCE USER SAMPLE MATRIX TO FLOAT TYPE (Ensures flawless model prediction parsing)
+            final_sample = final_sample.astype(float)
+
+            # Predict
+            prediction = knn.predict(final_sample)
+            city = city_encoder.inverse_transform(prediction)[0]
 
     return render_template(
         "index.html",
